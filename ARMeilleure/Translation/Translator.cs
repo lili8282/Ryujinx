@@ -280,7 +280,7 @@ namespace ARMeilleure.Translation
             DisposeBitMapPools();
         }
 
-        private struct Range
+        private readonly struct Range
         {
             public ulong Start { get; }
             public ulong End { get; }
