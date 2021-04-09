@@ -140,7 +140,7 @@ namespace ARMeilleure.Translation
 
                 if (Ptc.State == PtcState.Enabled)
                 {
-                    Ptc.LoadTranslations(_funcs, _memory, _jumpTable);
+                    Ptc.LoadTranslations(_funcs, _memory, _jumpTable, CountTable);
                     Ptc.MakeAndSaveTranslations(_funcs, _memory, _jumpTable, CountTable);
                 }
 
@@ -255,9 +255,11 @@ namespace ARMeilleure.Translation
 
             Logger.StartPass(PassName.Translation);
 
+            Counter counter = null;
+
             if (!context.HighCq)
             {
-                EmitRejitCheck(context);
+                EmitRejitCheck(context, out counter);
             }
 
             EmitSynchronization(context);
@@ -302,7 +304,7 @@ namespace ARMeilleure.Translation
                 Ptc.WriteInfoCodeRelocUnwindInfo(address, funcSize, highCq, ptcInfo);
             }
 
-            return new TranslatedFunction(func, funcSize, highCq);
+            return new TranslatedFunction(func, counter, funcSize, highCq);
         }
 
         internal static void PreparePool(int groupId = 0)
@@ -412,9 +414,9 @@ namespace ARMeilleure.Translation
             return context.GetControlFlowGraph();
         }
 
-        internal static void EmitRejitCheck(ArmEmitterContext context)
+        internal static void EmitRejitCheck(ArmEmitterContext context, out Counter counter)
         {
-            if (!context.CountTable.TryAllocate(out int index))
+            if (!Counter.TryCreate(context.CountTable, out counter))
             {
                 return;
             }
@@ -423,8 +425,7 @@ namespace ARMeilleure.Translation
             Operand lblAdd = Label();
             Operand lblEnd = Label();
 
-            // TODO: PPTC.
-            Operand address = Const(ref context.CountTable.GetValue(index));
+            Operand address = Const(ref counter.Value, Ptc.CountTableIndex);
             Operand count = context.Load8(address);
             context.BranchIf(lblAdd, count, Const(100), Comparison.LessUI);
             context.BranchIf(lblRejit, count, Const(100), Comparison.Equal);
@@ -510,9 +511,9 @@ namespace ARMeilleure.Translation
             {
                 while (_backgroundStack.TryPop(out var request))
                 {
-                    if (_funcs.TryGetValue(request.Address, out var func))
+                    if (_funcs.TryGetValue(request.Address, out var func) && func.CallCounter != null)
                     {
-                        func.ResetCallCount();
+                        Volatile.Write(ref func.CallCounter.Value, 0);
                     }
 
                     _backgroundSet.TryRemove(request.Address, out _);
