@@ -12,7 +12,7 @@ namespace ARMeilleure.CodeGen.X86
 {
     static class PreAllocator
     {
-        public static void RunPass(CompilerContext cctx, StackAllocator stackAlloc, out int maxCallArgs)
+        public static void RunPass(in CompilerContext cctx, StackAllocator stackAlloc, out int maxCallArgs)
         {
             maxCallArgs = -1;
 
@@ -135,7 +135,7 @@ namespace ARMeilleure.CodeGen.X86
 
         private static void HandleConstantRegCopy(IntrusiveList<Node> nodes, Node node, Operation operation)
         {
-            if (operation.SourcesCount == 0 || IsIntrinsic(operation.Instruction))
+            if (operation.SourcesCount == 0 || IsXmmIntrinsic(operation))
             {
                 return;
             }
@@ -954,7 +954,7 @@ namespace ARMeilleure.CodeGen.X86
         }
 
         private static Node HandleLoadArgumentWindowsAbi(
-            CompilerContext cctx,
+            in CompilerContext cctx,
             IntrusiveList<Node> nodes,
             Node node,
             Operand[] preservedArgs,
@@ -1020,7 +1020,7 @@ namespace ARMeilleure.CodeGen.X86
         }
 
         private static Node HandleLoadArgumentSystemVAbi(
-            CompilerContext cctx,
+            in CompilerContext cctx,
             IntrusiveList<Node> nodes,
             Node node,
             Operand[] preservedArgs,
@@ -1122,7 +1122,7 @@ namespace ARMeilleure.CodeGen.X86
         }
 
         private static void HandleReturnWindowsAbi(
-            CompilerContext cctx,
+            in CompilerContext cctx,
             IntrusiveList<Node> nodes,
             Node node,
             Operand[] preservedArgs,
@@ -1399,6 +1399,19 @@ namespace ARMeilleure.CodeGen.X86
         private static bool IsIntrinsic(Instruction inst)
         {
             return inst == Instruction.Extended;
+        }
+
+        private static bool IsXmmIntrinsic(Operation operation)
+        {
+            if (operation.Instruction != Instruction.Extended)
+            {
+                return false;
+            }
+
+            IntrinsicOperation intrinOp = (IntrinsicOperation)operation;
+            IntrinsicInfo info = IntrinsicTable.GetInfo(intrinOp.Intrinsic);
+
+            return info.Type != IntrinsicType.Crc32;
         }
     }
 }
